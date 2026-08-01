@@ -6,33 +6,47 @@ import JSZip from "jszip";
 import { scanAll } from "./inputScanner.js";
 import { runMonthwiseDisposeReport } from "./monthwiseDisposeReport.js";
 import { runCourtCasePositionAsOnDate } from "./courtCasePositionAsOnDate.js";
+import { buildConsolidatedFiles } from "./consolidator.js";
 
 export async function runPipeline(files, targetDate, log = () => {}) {
   log("=====================================================");
-  log(" Court Case Report Generator (QUERY format only)");
+  log(" Court Case Report Generator");
+  log(" Auto-detecting proforma per file: QUERY_BUILDER / DASHBOARD");
   log("=====================================================");
 
   log("Scanning uploaded files...");
   const scan = await scanAll(files, log);
 
-  const allOutputFiles = [...scan.duplicateFiles];
+  const queryBuilderFiles = [...scan.duplicateFiles];
 
   log("");
-  log(">>> Operation 1: Establishment-wise Monthwise Dispose Report");
+  log(">>> QUERY_BUILDER: Establishment-wise Monthwise Dispose Report");
   const op1Files = await runMonthwiseDisposeReport(scan.disposedByEstab, log);
-  allOutputFiles.push(...op1Files);
+  queryBuilderFiles.push(...op1Files);
 
   log("");
-  log(">>> Operation 2: Court Case Position As On Date");
+  log(">>> QUERY_BUILDER: Court Case Position As On Date");
   const op2 = await runCourtCasePositionAsOnDate(scan, targetDate, log);
-  allOutputFiles.push(...op2.outputFiles);
+  queryBuilderFiles.push(...op2.outputFiles);
+
+  const dashboardFiles = scan.dashboardFiles.map((f) => ({ path: f.path, buffer: f.buffer }));
 
   log("");
-  log("Both operations complete.");
+  log(`>>> DASHBOARD: ${scan.dashboardFiles.length} file(s) auto-detected, deduplicated & cleaned.`);
+
+  log("");
+  log(">>> CONSOLIDATED: DASHBOARD + QUERY_BUILDER full outer join (Case No. / Cases)");
+  const { files: consolidatedFiles, stats: consolidatedStats } = await buildConsolidatedFiles(scan, log);
+
+  log("");
+  log("All proforma pipelines complete.");
 
   return {
     scan,
-    outputFiles: allOutputFiles,
+    queryBuilderFiles,
+    dashboardFiles,
+    consolidatedFiles,
+    consolidatedStats,
     allDataRows: op2.allDataRows,
     allDataBuffer: op2.allDataBuffer,
   };

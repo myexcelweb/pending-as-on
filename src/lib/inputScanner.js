@@ -6,15 +6,23 @@
 
 import { resolveEstab, getCourtType } from "./establishmentResolver.js";
 import { dedupeByCaseNo } from "./deduplicator.js";
-import { detectFileType, loadPending, loadDisposed, loadWorkbookFromFile, buildDuplicatesCombinedWorkbook } from "./excelIO.js";
+import { loadPending, loadDisposed, loadWorkbookFromFile, buildDuplicatesCombinedWorkbook } from "./excelIO.js";
+import { detectProforma } from "./proformaResolver.js";
+import { readDashboardSheet, dedupeDashboardRows, buildDashboardWorkbook } from "./dashboardIO.js";
 
 // files: array of File objects (from an <input type=file multiple> or drop)
 // log: optional callback(message) for progress output
+//
+// Every file's proforma (QUERY_BUILDER or DASHBOARD) is auto-detected from
+// its column headers. QUERY_BUILDER files feed the existing MOVE/DELETE/
+// monthwise pipeline (grouped by establishment); DASHBOARD files are
+// deduplicated and cleaned independently, ready to be zipped up separately.
 export async function scanAll(files, log = () => {}) {
   const pendingByEstab = {};
   const disposedByEstab = {};
   const skipped = [];
   const errors = [];
+  const dashboardFiles = []; // { path, buffer, fileName, type, recordCount, removedCount }
 
   const xlsxFiles = files
     .filter((f) => f.name.toLowerCase().endsWith(".xlsx") && !f.name.startsWith("~$"))
@@ -22,7 +30,7 @@ export async function scanAll(files, log = () => {}) {
 
   if (xlsxFiles.length === 0) {
     log("No .xlsx files were provided.");
-    return { pendingByEstab, disposedByEstab, allEstabs: [], skipped, errors, duplicateFiles: [] };
+    return { pendingByEstab, disposedByEstab, allEstabs: [], skipped, errors, duplicateFiles: [], dashboardFiles: [] };
   }
 
   for (const file of xlsxFiles) {
@@ -38,20 +46,51 @@ export async function scanAll(files, log = () => {}) {
         continue;
       }
 
-      const { type, headerRow, colMap } = detectFileType(sheet);
+      const { proforma, type, headerRow, colMap } = detectProforma(sheet);
 
-      if (type === "Pending") {
+      if (proforma === "QUERY_BUILDER" && type === "Pending") {
         const records = loadPending(sheet, headerRow, colMap, fileName);
+        const { result, duplicates } = dedupeByCaseNo(records); // same-file dedupe
+        if (duplicates.length > 0) {
+          log(`[DEDUPE]   ${fileName}  -> removed ${duplicates.length} duplicate Case No. entr${duplicates.length === 1 ? "y" : "ies"} within this file.`);
+        }
         if (!pendingByEstab[estab]) pendingByEstab[estab] = [];
-        pendingByEstab[estab].push(...records);
-        log(`[PENDING]  ${fileName}  -> ESTAB=${estab}, ${records.length} records`);
-      } else if (type === "Disposed") {
+        pendingByEstab[estab].push(...result);
+        log(`[QUERY_BUILDER / PENDING]  ${fileName}  -> ESTAB=${estab}, ${result.length} records`);
+      } else if (proforma === "QUERY_BUILDER" && type === "Disposed") {
         const records = loadDisposed(sheet, headerRow, colMap, fileName);
+        const { result, duplicates } = dedupeByCaseNo(records); // same-file dedupe
+        if (duplicates.length > 0) {
+          log(`[DEDUPE]   ${fileName}  -> removed ${duplicates.length} duplicate Case No. entr${duplicates.length === 1 ? "y" : "ies"} within this file.`);
+        }
         if (!disposedByEstab[estab]) disposedByEstab[estab] = [];
-        disposedByEstab[estab].push(...records);
-        log(`[DISPOSED] ${fileName}  -> ESTAB=${estab}, ${records.length} records`);
+        disposedByEstab[estab].push(...result);
+        log(`[QUERY_BUILDER / DISPOSED] ${fileName}  -> ESTAB=${estab}, ${result.length} records`);
+      } else if (proforma === "DASHBOARD" && (type === "Pending" || type === "Disposed")) {
+        const { header, titleRows, rows, casesColIndex } = readDashboardSheet(sheet, headerRow, colMap);
+        const { result, duplicates } = dedupeDashboardRows(rows, casesColIndex); // same-file dedupe
+        if (duplicates.length > 0) {
+          log(`[DEDUPE]   ${fileName}  -> removed ${duplicates.length} duplicate Cases entr${duplicates.length === 1 ? "y" : "ies"} within this file.`);
+        }
+        const buffer = await buildDashboardWorkbook(titleRows, header, result);
+        dashboardFiles.push({
+          path: `DASHBOARD/${type.toUpperCase()}/${fileName}`,
+          buffer,
+          fileName,
+          type,
+          estab,
+          recordCount: result.length,
+          removedCount: duplicates.length,
+          // Kept (not just the rendered buffer) so the CONSOLIDATED
+          // (DASHBOARD + QUERY_BUILDER) full outer join can read the
+          // already-deduplicated rows straight back out again.
+          header,
+          rows: result,
+          casesColIndex,
+        });
+        log(`[DASHBOARD / ${type.toUpperCase()}]  ${fileName}  -> ${result.length} records${duplicates.length ? `, ${duplicates.length} duplicate(s) removed` : ""}`);
       } else {
-        log(`[SKIPPED]  ${fileName}  -> could not detect PENDING or DISPOSED columns (Dashboard-format files are not supported).`);
+        log(`[SKIPPED]  ${fileName}  -> could not detect a known layout (QUERY_BUILDER or DASHBOARD, PENDING or DISPOSED).`);
         skipped.push(fileName);
       }
     } catch (ex) {
@@ -66,7 +105,7 @@ export async function scanAll(files, log = () => {}) {
     new Set([...Object.keys(pendingByEstab), ...Object.keys(disposedByEstab)])
   ).sort((a, b) => a.localeCompare(b));
 
-  return { pendingByEstab, disposedByEstab, allEstabs, skipped, errors, duplicateFiles };
+  return { pendingByEstab, disposedByEstab, allEstabs, skipped, errors, duplicateFiles, dashboardFiles };
 }
 
 // Builds a per-uploaded-file breakdown of PENDING vs DISPOSED entry counts,
@@ -102,6 +141,26 @@ export function computeFileStats(scan) {
   );
   totals.total = totals.pending + totals.disposed;
 
+  return { rows, totals };
+}
+
+// Per-uploaded-file breakdown for DASHBOARD-proforma files, for the UI.
+export function computeDashboardStats(scan) {
+  const rows = (scan.dashboardFiles || []).map((f) => ({
+    fileName: f.fileName,
+    estab: f.estab,
+    type: f.type,
+    records: f.recordCount,
+    removed: f.removedCount,
+  }));
+  const totals = rows.reduce(
+    (acc, r) => {
+      acc.records += r.records;
+      acc.removed += r.removed;
+      return acc;
+    },
+    { records: 0, removed: 0 }
+  );
   return { rows, totals };
 }
 

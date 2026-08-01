@@ -20,14 +20,32 @@ function stripExtension(fileName) {
   return idx > 0 ? fileName.slice(0, idx) : fileName;
 }
 
+// Splits the file name on any run of non-alphanumeric characters
+// (_, -, space, etc.) into upper-cased tokens, e.g.
+// "1_APP_JAN26" -> ["1", "APP", "JAN26"].
+function tokenize(upperName) {
+  return upperName.split(/[^A-Z0-9]+/).filter(Boolean);
+}
+
 export function resolveEstab(fileName) {
   const name = stripExtension(fileName).trim();
   const upper = name.toUpperCase();
+
+  // Preferred: an exact, delimited token match — handles names with a
+  // numbering/date prefix or suffix, e.g. "1_APP_JAN26.xlsx",
+  // "2-KUT-Feb26.xlsx", "APP JAN26.xlsx", not just "APP..." at position 0.
+  const tokens = tokenize(upper);
   for (const estab of KNOWN_ESTABS) {
-    if (upper.startsWith(estab)) {
-      return estab;
-    }
+    if (tokens.includes(estab)) return estab;
   }
+
+  // Fallback: legacy "starts with" match, for old-style names with no
+  // delimiter between the establishment code and what follows it
+  // (e.g. "APPJAN26.xlsx").
+  for (const estab of KNOWN_ESTABS) {
+    if (upper.startsWith(estab)) return estab;
+  }
+
   return DEFAULT_ESTAB;
 }
 

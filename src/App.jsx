@@ -32,7 +32,9 @@ export default function App() {
   const [files, setFiles] = useState([]);
   const [dateIso, setDateIso] = useState(todayIso());
   const [running, setRunning] = useState(false);
-  const [zipBusy, setZipBusy] = useState(false);
+  const [qbZipBusy, setQbZipBusy] = useState(false);
+  const [dbZipBusy, setDbZipBusy] = useState(false);
+  const [csZipBusy, setCsZipBusy] = useState(false);
   const [logLines, setLogLines] = useState([]);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -61,14 +63,36 @@ export default function App() {
     }
   };
 
-  const handleDownloadZip = async () => {
-    if (!result) return;
-    setZipBusy(true);
+  const handleDownloadQueryBuilderZip = async () => {
+    if (!result || result.queryBuilderFiles.length === 0) return;
+    setQbZipBusy(true);
     try {
-      const blob = await buildZip(result.outputFiles);
-      download(blob, `CourtCaseReports_${dateIso}.zip`);
+      const blob = await buildZip(result.queryBuilderFiles);
+      download(blob, `QUERY_BUILDER_${dateIso}.zip`);
     } finally {
-      setZipBusy(false);
+      setQbZipBusy(false);
+    }
+  };
+
+  const handleDownloadDashboardZip = async () => {
+    if (!result || result.dashboardFiles.length === 0) return;
+    setDbZipBusy(true);
+    try {
+      const blob = await buildZip(result.dashboardFiles);
+      download(blob, `DASHBOARD_${dateIso}.zip`);
+    } finally {
+      setDbZipBusy(false);
+    }
+  };
+
+  const handleDownloadConsolidatedZip = async () => {
+    if (!result || result.consolidatedFiles.length === 0) return;
+    setCsZipBusy(true);
+    try {
+      const blob = await buildZip(result.consolidatedFiles);
+      download(blob, `CONSOLIDATED_${dateIso}.zip`);
+    } finally {
+      setCsZipBusy(false);
     }
   };
 
@@ -97,11 +121,14 @@ export default function App() {
               <span className="italic text-brass">closed docket</span>.
             </h1>
             <p className="mt-5 max-w-xl font-body text-[15px] leading-relaxed text-parchment-dim">
-              Upload every PENDING and DISPOSED register from the INPUT folder, pick a date,
-              and Docket rebuilds the establishment-wise monthwise disposal report and the
-              full case-position-as-on-date snapshot — pending, disposed, moved, duplicate
-              and deleted — exactly as the original QUERY-format tool did. Everything runs
-              in this browser tab; no file ever leaves your machine.
+              Upload every PENDING and DISPOSED register — QUERY_BUILDER format,
+              DASHBOARD format, or a mix of both — pick a date, and Docket
+              auto-detects each file's proforma from its columns, removes repeated
+              Case No. / Cases entries within the same source file, and hands back
+              two separate proforma-wise ZIPs: QUERY_BUILDER (full monthwise /
+              position-as-on-date pipeline) and DASHBOARD (cleaned, deduplicated
+              registers). Everything runs in this browser tab; no file ever leaves
+              your machine.
             </p>
           </div>
         </div>
@@ -162,10 +189,17 @@ export default function App() {
           <section className="mt-8">
             <ResultsPanel
               scan={result.scan}
-              outputFiles={result.outputFiles}
-              onDownloadZip={handleDownloadZip}
+              queryBuilderFiles={result.queryBuilderFiles}
+              dashboardFiles={result.dashboardFiles}
+              consolidatedFiles={result.consolidatedFiles}
+              consolidatedStats={result.consolidatedStats}
+              onDownloadQueryBuilderZip={handleDownloadQueryBuilderZip}
+              onDownloadDashboardZip={handleDownloadDashboardZip}
+              onDownloadConsolidatedZip={handleDownloadConsolidatedZip}
               onDownloadAllData={handleDownloadAllData}
-              zipBusy={zipBusy}
+              qbZipBusy={qbZipBusy}
+              dbZipBusy={dbZipBusy}
+              csZipBusy={csZipBusy}
             />
           </section>
         )}
@@ -174,24 +208,42 @@ export default function App() {
           <h2 className="font-display text-lg text-parchment">Column formats expected</h2>
           <div className="mt-4 grid gap-6 sm:grid-cols-2">
             <div className="rounded-sm border border-ink-700 p-4">
-              <p className="font-mono text-xs uppercase tracking-widest text-emerald-bright">Pending</p>
+              <p className="font-mono text-xs uppercase tracking-widest text-brass">QUERY_BUILDER · Pending</p>
               <p className="mt-2 font-mono text-[12.5px] leading-relaxed text-parchment-dim">
                 Sr. No. · Case No. · CNR · Petitioner Name VS Respondent Name · Advocate ·
                 Date of Registration · Next Date · Purpose · Act Section · Nature · Designation
               </p>
             </div>
             <div className="rounded-sm border border-ink-700 p-4">
-              <p className="font-mono text-xs uppercase tracking-widest text-parchment">Disposed</p>
+              <p className="font-mono text-xs uppercase tracking-widest text-brass">QUERY_BUILDER · Disposed</p>
               <p className="mt-2 font-mono text-[12.5px] leading-relaxed text-parchment-dim">
                 Sr. No. · Case No. · CNR · Petitioner Name VS Respondent Name · Advocate ·
                 Date of Registration · Date of Decision · Nature of Disposal · Act Section ·
                 Nature · Designation
               </p>
             </div>
+            <div className="rounded-sm border border-ink-700 p-4">
+              <p className="font-mono text-xs uppercase tracking-widest text-emerald-bright">DASHBOARD · Pending</p>
+              <p className="mt-2 font-mono text-[12.5px] leading-relaxed text-parchment-dim">
+                Sr. No. · Cases · Party Name · Date of Registration · Age ·
+                Ready / Unready / Stayed · Next Date · Next Purpose · On same Stage since ·
+                DORMANT CASE/SINE Die CASE · Nature · Delay Reason
+              </p>
+            </div>
+            <div className="rounded-sm border border-ink-700 p-4">
+              <p className="font-mono text-xs uppercase tracking-widest text-emerald-bright">DASHBOARD · Disposed</p>
+              <p className="mt-2 font-mono text-[12.5px] leading-relaxed text-parchment-dim">
+                Sr. No. · Cases · Party Name · Registration date · Date of Decision ·
+                Contested/Uncontested · Disposal Nature · Nature
+              </p>
+            </div>
           </div>
           <p className="mt-4 font-mono text-xs text-parchment-dim">
-            Type is detected from these column headers, not the file name. Establishment is
-            read from the start of the file name (APP / SUB / RAN / KUT), otherwise PBR.
+            Proforma (QUERY_BUILDER vs DASHBOARD) and type (Pending vs Disposed) are both
+            detected from these column headers, not the file name — you can upload a mix
+            of both formats in one go. Establishment is read from the start of the file
+            name (APP / SUB / RAN / KUT), otherwise PBR. A repeated Case No. / Cases value
+            within the same uploaded file is dropped, keeping the first entry.
           </p>
         </section>
       </main>
