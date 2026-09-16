@@ -242,6 +242,7 @@ export default function ResultsPanel({
       fileStats={fileStats}
       dashboardStats={dashboardStats}
       designationSummary={designationSummary}
+      establishmentSummary={establishmentSummary}
       totalOutputFiles={totalOutputFiles}
       consolidatedTotal={consolidatedTotal}
       tabs={tabs}
@@ -268,6 +269,7 @@ function ResultsPanelBody({
   fileStats,
   dashboardStats,
   designationSummary,
+  establishmentSummary,
   totalOutputFiles,
   consolidatedTotal,
   tabs,
