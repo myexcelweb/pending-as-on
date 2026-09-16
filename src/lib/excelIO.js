@@ -331,56 +331,74 @@ export async function buildDeletedCombinedWorkbook(deletedPending, deletedDispos
 }
 
 // Mirrors ExcelIO.SaveDuplicatesCombined
-export async function buildDuplicatesCombinedWorkbook(duplicatePending, duplicateDisposed, courtType, estab) {
+// duplicatePendingReport / duplicateDisposedReport: arrays of records from
+// dedupeByCaseNo's `report` output — i.e. BOTH the KEPT copy and the
+// REMOVED copy(ies) for every CNR that repeated within this establishment,
+// each already tagged with `dedupeStatus: "KEPT" | "REMOVED"` and carrying
+// `sourceFileName` (which file that particular copy came from).
+//
+// Two extra columns are written vs. the plain PENDING/DISPOSED sheets:
+//   - "Status"       -> KEPT or REMOVED
+//   - "Source File"  -> the uploaded file that row came from
+// so the DUPLICATE workbook is a self-contained audit trail: for every
+// duplicate CNR you can see every copy, which file each one came from, and
+// which single copy was kept.
+export async function buildDuplicatesCombinedWorkbook(duplicatePendingReport, duplicateDisposedReport, courtType, estab) {
   const wb = newWorkbook();
-  const pendingHeaders = ["Sr. No.", "Case No.", "CNR", "Petitioner Name VS Respondent Name", "Advocate",
+  const pendingHeaders = ["Sr. No.", "Status", "Source File", "Case No.", "CNR", "Petitioner Name VS Respondent Name", "Advocate",
     "Date of Registration", "Next Date", "Purpose", "Act Section", "Nature", "Designation"];
-  const disposedHeaders = ["Sr. No.", "Case No.", "CNR", "Petitioner Name VS Respondent Name", "Advocate",
+  const disposedHeaders = ["Sr. No.", "Status", "Source File", "Case No.", "CNR", "Petitioner Name VS Respondent Name", "Advocate",
     "Date of Registration", "Date of Decision", "Nature of Disposal", "Act Section", "Nature", "Designation"];
 
-  if (duplicatePending.length > 0) {
+  if (duplicatePendingReport.length > 0) {
     const sheet = wb.addWorksheet("PENDING_DUPLICATE");
-    sheet.getCell(1, 1).value = `PORBANDAR_${courtType}_COURT_${estab}_PENDING_DUPLICATE (same Case No. within establishment)`;
-    sheet.mergeCells(1, 1, 1, 11);
+    sheet.getCell(1, 1).value = `PORBANDAR_${courtType}_COURT_${estab}_PENDING_DUPLICATE (same CNR within establishment — KEPT + REMOVED)`;
+    sheet.mergeCells(1, 1, 1, pendingHeaders.length);
     writeHeaderStyle(sheet, pendingHeaders);
     let row = 3, sr = 1;
-    for (const rec of duplicatePending) {
+    for (const rec of duplicatePendingReport) {
       const r = sheet.getRow(row);
       r.getCell(1).value = sr++;
-      r.getCell(2).value = rec.caseNo;
-      r.getCell(3).value = rec.cnr;
-      r.getCell(4).value = rec.petitionerVsRespondent;
-      r.getCell(5).value = rec.advocate;
-      r.getCell(6).value = formatDate(rec.dateOfRegistration);
-      r.getCell(7).value = rec.nextDate ? formatDate(rec.nextDate) : "";
-      r.getCell(8).value = rec.purpose;
-      r.getCell(9).value = rec.actSection;
-      r.getCell(10).value = rec.nature;
-      r.getCell(11).value = rec.designation;
+      r.getCell(2).value = rec.dedupeStatus;
+      r.getCell(3).value = rec.sourceFileName;
+      r.getCell(4).value = rec.caseNo;
+      r.getCell(5).value = rec.cnr;
+      r.getCell(6).value = rec.petitionerVsRespondent;
+      r.getCell(7).value = rec.advocate;
+      r.getCell(8).value = formatDate(rec.dateOfRegistration);
+      r.getCell(9).value = rec.nextDate ? formatDate(rec.nextDate) : "";
+      r.getCell(10).value = rec.purpose;
+      r.getCell(11).value = rec.actSection;
+      r.getCell(12).value = rec.nature;
+      r.getCell(13).value = rec.designation;
+      if (rec.dedupeStatus === "REMOVED") fillLightGreen(r, pendingHeaders.length);
       row++;
     }
     autoFitColumns(sheet, pendingHeaders);
   }
 
-  if (duplicateDisposed.length > 0) {
+  if (duplicateDisposedReport.length > 0) {
     const sheet = wb.addWorksheet("DISPOSED_DUPLICATE");
-    sheet.getCell(1, 1).value = `PORBANDAR_${courtType}_COURT_${estab}_DISPOSED_DUPLICATE (same Case No. within establishment)`;
-    sheet.mergeCells(1, 1, 1, 11);
+    sheet.getCell(1, 1).value = `PORBANDAR_${courtType}_COURT_${estab}_DISPOSED_DUPLICATE (same CNR within establishment — KEPT + REMOVED)`;
+    sheet.mergeCells(1, 1, 1, disposedHeaders.length);
     writeHeaderStyle(sheet, disposedHeaders);
     let row = 3, sr = 1;
-    for (const rec of duplicateDisposed) {
+    for (const rec of duplicateDisposedReport) {
       const r = sheet.getRow(row);
       r.getCell(1).value = sr++;
-      r.getCell(2).value = rec.caseNo;
-      r.getCell(3).value = rec.cnr;
-      r.getCell(4).value = rec.petitionerVsRespondent;
-      r.getCell(5).value = rec.advocate;
-      r.getCell(6).value = formatDate(rec.dateOfRegistration);
-      r.getCell(7).value = formatDate(rec.dateOfDecision);
-      r.getCell(8).value = rec.natureOfDisposal;
-      r.getCell(9).value = rec.actSection;
-      r.getCell(10).value = rec.nature;
-      r.getCell(11).value = rec.designation;
+      r.getCell(2).value = rec.dedupeStatus;
+      r.getCell(3).value = rec.sourceFileName;
+      r.getCell(4).value = rec.caseNo;
+      r.getCell(5).value = rec.cnr;
+      r.getCell(6).value = rec.petitionerVsRespondent;
+      r.getCell(7).value = rec.advocate;
+      r.getCell(8).value = formatDate(rec.dateOfRegistration);
+      r.getCell(9).value = formatDate(rec.dateOfDecision);
+      r.getCell(10).value = rec.natureOfDisposal;
+      r.getCell(11).value = rec.actSection;
+      r.getCell(12).value = rec.nature;
+      r.getCell(13).value = rec.designation;
+      if (rec.dedupeStatus === "REMOVED") fillLightGreen(r, disposedHeaders.length);
       row++;
     }
     autoFitColumns(sheet, disposedHeaders);
