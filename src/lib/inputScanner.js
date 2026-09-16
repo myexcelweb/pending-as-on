@@ -5,7 +5,7 @@
 // by establishment.
 
 import { resolveEstab, getCourtType } from "./establishmentResolver.js";
-import { dedupeByCaseNo } from "./deduplicator.js";
+import { dedupeByCaseNo, dedupeCrossCategory } from "./deduplicator.js";
 import { loadPending, loadDisposed, loadWorkbookFromFile, buildDuplicatesCombinedWorkbook } from "./excelIO.js";
 import { detectProforma } from "./proformaResolver.js";
 import { readDashboardSheet, dedupeDashboardRows, buildDashboardWorkbook } from "./dashboardIO.js";
@@ -194,10 +194,29 @@ async function deduplicateEstablishmentWise(pendingByEstab, disposedByEstab, log
       }
     }
 
-    if (pendingReport.length > 0 || disposedReport.length > 0) {
+    // Cross-category check: same CNR present in BOTH this establishment's
+    // PENDING and DISPOSED lists -> keep the PENDING copy, drop the
+    // DISPOSED copy. Runs after the two per-category passes above, so at
+    // this point pendingByEstab[estab] and disposedByEstab[estab] each
+    // have at most one row per CNR already.
+    let crossReport = [];
+    if (pendingByEstab[estab] && disposedByEstab[estab]) {
+      const { disposedResult, crossReport: report } = dedupeCrossCategory(
+        pendingByEstab[estab],
+        disposedByEstab[estab]
+      );
+      disposedByEstab[estab] = disposedResult;
+      crossReport = report;
+      const removedCount = report.filter((r) => r.dedupeStatus === "REMOVED").length;
+      if (removedCount > 0) {
+        log(`[DEDUPE]   CROSS    ESTAB=${estab}: removed ${removedCount} DISPOSED entr${removedCount === 1 ? "y" : "ies"} whose CNR is also PENDING (kept as PENDING).`);
+      }
+    }
+
+    if (pendingReport.length > 0 || disposedReport.length > 0 || crossReport.length > 0) {
       const courtType = getCourtType(estab);
       const dupFileName = `${estab}_DUPLICATE.xlsx`;
-      const buffer = await buildDuplicatesCombinedWorkbook(pendingReport, disposedReport, courtType, estab);
+      const buffer = await buildDuplicatesCombinedWorkbook(pendingReport, disposedReport, courtType, estab, crossReport);
       if (buffer) {
         duplicateFiles.push({ path: `OUTPUT/DUPLICATE/${dupFileName}`, buffer });
         log(`[DEDUPE]   ESTAB=${estab}: KEPT + REMOVED entries saved -> OUTPUT/DUPLICATE/${dupFileName}`);
