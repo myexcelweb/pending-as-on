@@ -156,8 +156,13 @@ function DesignationSummaryTable({ rows, totals, mode, keyLabel = "Designation" 
         <tbody>
           {rows.map((r) => (
             <tr key={r.designation} className="border-b border-ink-700 last:border-0 hover:bg-ink-800/30">
-              <td className="max-w-[280px] truncate px-3 py-2 text-parchment" title={r.designation}>
-                {r.designation}
+              <td className="max-w-[320px] px-3 py-2 text-parchment" title={r.designation}>
+                <span className="flex items-baseline gap-1.5">
+                  <span className="truncate">{r.mainLabel ?? r.designation}</span>
+                  {r.suffixLabel && (
+                    <span className="shrink-0 text-parchment-dim">({r.suffixLabel})</span>
+                  )}
+                </span>
               </td>
               <td className="px-3 py-2 text-right tabular-nums text-emerald">{num(r[civilKey])}</td>
               <td className="px-3 py-2 text-right tabular-nums text-rust">{num(r[criminalKey])}</td>

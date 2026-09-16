@@ -243,10 +243,18 @@ async function deduplicateEstablishmentWise(pendingByEstab, disposedByEstab, log
 function tallyBy(scan, keyLabel, keyFor) {
   const byKey = new Map();
 
-  const ensure = (key) => {
+  // keyFor() may return a plain string, or [main, suffix] when the group key
+  // is a composite like `DESIGNATION (ESTA)`. In the composite case the row
+  // also carries the two halves separately so the table can truncate the long
+  // main label without ever hiding the short suffix.
+  const ensure = (parts) => {
+    const [main, suffix] = Array.isArray(parts) ? parts : [parts, null];
+    const key = suffix == null ? main : `${main} (${suffix})`;
     if (!byKey.has(key)) {
       byKey.set(key, {
         [keyLabel]: key,
+        mainLabel: main,
+        suffixLabel: suffix,
         pendingCivil: 0,
         pendingCriminal: 0,
         pendingTotal: 0,
@@ -299,10 +307,17 @@ function tallyBy(scan, keyLabel, keyFor) {
 }
 
 // Designation-wise PENDING and DISPOSED case-count summary. Groups every
-// record (across ALL establishments) by the raw "Designation" column read
-// from inside the Excel file.
+// record by the raw "Designation" column read from inside the Excel file
+// PAIRED WITH its ESTA (establishment code resolved from the source file
+// name), rendered as `DESIGNATION (ESTA)`. The ESTA is part of the key, not
+// just a label: the same designation text can appear in more than one
+// establishment, and those are separate courts that must not be merged into
+// one row.
 export function computeDesignationSummary(scan) {
-  return tallyBy(scan, "designation", (estab, rec) => rec.designation || "(unknown)");
+  return tallyBy(scan, "designation", (estab, rec) => [
+    rec.designation || "(unknown)",
+    estab || "PBR",
+  ]);
 }
 
 // ESTA-wise PENDING and DISPOSED case-count summary. Groups every record
