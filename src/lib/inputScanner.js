@@ -228,14 +228,16 @@ async function deduplicateEstablishmentWise(pendingByEstab, disposedByEstab, log
   return duplicateFiles;
 }
 
-// Designation-wise PENDING and DISPOSED case-count summary, for the
-// dashboard. Groups every PENDING/DISPOSED record (across ALL
-// establishments) by its `designation`, and within each designation
-// splits counts into Civil / Criminal using side.js's classifySide(),
-// which reads the case-type prefix off the front of `caseNo`
-// (e.g. "CC/408/2025" -> "CC" -> CRIMINAL).
+// Establishment-wise (ESTA) PENDING and DISPOSED case-count summary, for
+// the dashboard's "Designation" tab. Groups every PENDING/DISPOSED record
+// by its ESTA (establishment code resolved from the SOURCE FILE NAME via
+// resolveEstab: RAN/KUT/SUB/APP, else PBR — see establishmentResolver.js),
+// NOT by the raw "Designation" column read from inside the Excel file.
+// Within each establishment, counts are split into Civil / Criminal using
+// side.js's classifySide(), which reads the case-type prefix off the
+// front of `caseNo` (e.g. "CC/408/2025" -> "CC" -> CRIMINAL).
 //
-// Note: "*Total" is the total record count for that designation,
+// Note: "*Total" is the total record count for that establishment,
 // regardless of classification — it can be greater than Civil + Criminal
 // if some case-type prefixes aren't in side.js's known lists (those show
 // up as UNKNOWN and aren't counted in either the Civil or Criminal
@@ -260,7 +262,7 @@ export function computeDesignationSummary(scan) {
 
   for (const estab of Object.keys(scan.pendingByEstab)) {
     for (const rec of scan.pendingByEstab[estab]) {
-      const row = ensure(rec.designation || "(unknown)");
+      const row = ensure(estab || "PBR");
       row.pendingTotal += 1;
       const side = classifySide(rec.caseNo);
       if (side === "CIVIL") row.pendingCivil += 1;
@@ -270,7 +272,7 @@ export function computeDesignationSummary(scan) {
 
   for (const estab of Object.keys(scan.disposedByEstab)) {
     for (const rec of scan.disposedByEstab[estab]) {
-      const row = ensure(rec.designation || "(unknown)");
+      const row = ensure(estab || "PBR");
       row.disposeTotal += 1;
       const side = classifySide(rec.caseNo);
       if (side === "CIVIL") row.disposeCivil += 1;
