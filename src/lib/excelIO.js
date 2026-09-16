@@ -345,9 +345,12 @@ export async function buildDeletedCombinedWorkbook(deletedPending, deletedDispos
 // which single copy was kept.
 export async function buildDuplicatesCombinedWorkbook(duplicatePendingReport, duplicateDisposedReport, courtType, estab) {
   const wb = newWorkbook();
-  const pendingHeaders = ["Sr. No.", "Status", "Source File", "Case No.", "CNR", "Petitioner Name VS Respondent Name", "Advocate",
+  // "Status" is now split into two separate columns — "Keep" and
+  // "Removed/Deleted" — so each row shows a mark in exactly ONE of the two
+  // columns, rather than one shared status column with two possible values.
+  const pendingHeaders = ["Sr. No.", "Keep", "Removed/Deleted", "Source File", "Case No.", "CNR", "Petitioner Name VS Respondent Name", "Advocate",
     "Date of Registration", "Next Date", "Purpose", "Act Section", "Nature", "Designation"];
-  const disposedHeaders = ["Sr. No.", "Status", "Source File", "Case No.", "CNR", "Petitioner Name VS Respondent Name", "Advocate",
+  const disposedHeaders = ["Sr. No.", "Keep", "Removed/Deleted", "Source File", "Case No.", "CNR", "Petitioner Name VS Respondent Name", "Advocate",
     "Date of Registration", "Date of Decision", "Nature of Disposal", "Act Section", "Nature", "Designation"];
 
   if (duplicatePendingReport.length > 0) {
@@ -358,20 +361,22 @@ export async function buildDuplicatesCombinedWorkbook(duplicatePendingReport, du
     let row = 3, sr = 1;
     for (const rec of duplicatePendingReport) {
       const r = sheet.getRow(row);
+      const isKept = rec.dedupeStatus === "KEPT";
       r.getCell(1).value = sr++;
-      r.getCell(2).value = rec.dedupeStatus;
-      r.getCell(3).value = rec.sourceFileName;
-      r.getCell(4).value = rec.caseNo;
-      r.getCell(5).value = rec.cnr;
-      r.getCell(6).value = rec.petitionerVsRespondent;
-      r.getCell(7).value = rec.advocate;
-      r.getCell(8).value = formatDate(rec.dateOfRegistration);
-      r.getCell(9).value = rec.nextDate ? formatDate(rec.nextDate) : "";
-      r.getCell(10).value = rec.purpose;
-      r.getCell(11).value = rec.actSection;
-      r.getCell(12).value = rec.nature;
-      r.getCell(13).value = rec.designation;
-      if (rec.dedupeStatus === "REMOVED") fillLightGreen(r, pendingHeaders.length);
+      r.getCell(2).value = isKept ? "KEEP" : "";
+      r.getCell(3).value = isKept ? "" : "DELETED";
+      r.getCell(4).value = rec.sourceFileName;
+      r.getCell(5).value = rec.caseNo;
+      r.getCell(6).value = rec.cnr;
+      r.getCell(7).value = rec.petitionerVsRespondent;
+      r.getCell(8).value = rec.advocate;
+      r.getCell(9).value = formatDate(rec.dateOfRegistration);
+      r.getCell(10).value = rec.nextDate ? formatDate(rec.nextDate) : "";
+      r.getCell(11).value = rec.purpose;
+      r.getCell(12).value = rec.actSection;
+      r.getCell(13).value = rec.nature;
+      r.getCell(14).value = rec.designation;
+      if (!isKept) fillLightGreen(r, pendingHeaders.length);
       row++;
     }
     autoFitColumns(sheet, pendingHeaders);
@@ -385,20 +390,22 @@ export async function buildDuplicatesCombinedWorkbook(duplicatePendingReport, du
     let row = 3, sr = 1;
     for (const rec of duplicateDisposedReport) {
       const r = sheet.getRow(row);
+      const isKept = rec.dedupeStatus === "KEPT";
       r.getCell(1).value = sr++;
-      r.getCell(2).value = rec.dedupeStatus;
-      r.getCell(3).value = rec.sourceFileName;
-      r.getCell(4).value = rec.caseNo;
-      r.getCell(5).value = rec.cnr;
-      r.getCell(6).value = rec.petitionerVsRespondent;
-      r.getCell(7).value = rec.advocate;
-      r.getCell(8).value = formatDate(rec.dateOfRegistration);
-      r.getCell(9).value = formatDate(rec.dateOfDecision);
-      r.getCell(10).value = rec.natureOfDisposal;
-      r.getCell(11).value = rec.actSection;
-      r.getCell(12).value = rec.nature;
-      r.getCell(13).value = rec.designation;
-      if (rec.dedupeStatus === "REMOVED") fillLightGreen(r, disposedHeaders.length);
+      r.getCell(2).value = isKept ? "KEEP" : "";
+      r.getCell(3).value = isKept ? "" : "DELETED";
+      r.getCell(4).value = rec.sourceFileName;
+      r.getCell(5).value = rec.caseNo;
+      r.getCell(6).value = rec.cnr;
+      r.getCell(7).value = rec.petitionerVsRespondent;
+      r.getCell(8).value = rec.advocate;
+      r.getCell(9).value = formatDate(rec.dateOfRegistration);
+      r.getCell(10).value = formatDate(rec.dateOfDecision);
+      r.getCell(11).value = rec.natureOfDisposal;
+      r.getCell(12).value = rec.actSection;
+      r.getCell(13).value = rec.nature;
+      r.getCell(14).value = rec.designation;
+      if (!isKept) fillLightGreen(r, disposedHeaders.length);
       row++;
     }
     autoFitColumns(sheet, disposedHeaders);
