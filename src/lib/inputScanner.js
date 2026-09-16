@@ -228,27 +228,25 @@ async function deduplicateEstablishmentWise(pendingByEstab, disposedByEstab, log
   return duplicateFiles;
 }
 
-// Establishment-wise (ESTA) PENDING and DISPOSED case-count summary, for
-// the dashboard's "Designation" tab. Groups every PENDING/DISPOSED record
-// by its ESTA (establishment code resolved from the SOURCE FILE NAME via
-// resolveEstab: RAN/KUT/SUB/APP, else PBR — see establishmentResolver.js),
-// NOT by the raw "Designation" column read from inside the Excel file.
-// Within each establishment, counts are split into Civil / Criminal using
-// side.js's classifySide(), which reads the case-type prefix off the
-// front of `caseNo` (e.g. "CC/408/2025" -> "CC" -> CRIMINAL).
+// Shared tally used by both computeDesignationSummary() and
+// computeEstablishmentSummary() below: walks every PENDING/DISPOSED
+// record, groups it by whatever `keyFor(estab, rec)` returns, and within
+// each group splits counts into Civil / Criminal using side.js's
+// classifySide(), which reads the case-type prefix off the front of
+// `caseNo` (e.g. "CC/408/2025" -> "CC" -> CRIMINAL).
 //
-// Note: "*Total" is the total record count for that establishment,
-// regardless of classification — it can be greater than Civil + Criminal
-// if some case-type prefixes aren't in side.js's known lists (those show
-// up as UNKNOWN and aren't counted in either the Civil or Criminal
-// column, but are still counted in the total).
-export function computeDesignationSummary(scan) {
-  const byDesignation = new Map();
+// Note: "*Total" is the total record count for that group, regardless of
+// classification — it can be greater than Civil + Criminal if some
+// case-type prefixes aren't in side.js's known lists (those show up as
+// UNKNOWN and aren't counted in either the Civil or Criminal column, but
+// are still counted in the total).
+function tallyBy(scan, keyLabel, keyFor) {
+  const byKey = new Map();
 
-  const ensure = (designation) => {
-    if (!byDesignation.has(designation)) {
-      byDesignation.set(designation, {
-        designation,
+  const ensure = (key) => {
+    if (!byKey.has(key)) {
+      byKey.set(key, {
+        [keyLabel]: key,
         pendingCivil: 0,
         pendingCriminal: 0,
         pendingTotal: 0,
@@ -257,12 +255,12 @@ export function computeDesignationSummary(scan) {
         disposeTotal: 0,
       });
     }
-    return byDesignation.get(designation);
+    return byKey.get(key);
   };
 
   for (const estab of Object.keys(scan.pendingByEstab)) {
     for (const rec of scan.pendingByEstab[estab]) {
-      const row = ensure(estab || "PBR");
+      const row = ensure(keyFor(estab, rec));
       row.pendingTotal += 1;
       const side = classifySide(rec.caseNo);
       if (side === "CIVIL") row.pendingCivil += 1;
@@ -272,7 +270,7 @@ export function computeDesignationSummary(scan) {
 
   for (const estab of Object.keys(scan.disposedByEstab)) {
     for (const rec of scan.disposedByEstab[estab]) {
-      const row = ensure(estab || "PBR");
+      const row = ensure(keyFor(estab, rec));
       row.disposeTotal += 1;
       const side = classifySide(rec.caseNo);
       if (side === "CIVIL") row.disposeCivil += 1;
@@ -280,8 +278,8 @@ export function computeDesignationSummary(scan) {
     }
   }
 
-  const rows = Array.from(byDesignation.values()).sort((a, b) =>
-    a.designation.localeCompare(b.designation)
+  const rows = Array.from(byKey.values()).sort((a, b) =>
+    String(a[keyLabel]).localeCompare(String(b[keyLabel]))
   );
 
   const totals = rows.reduce(
@@ -298,4 +296,19 @@ export function computeDesignationSummary(scan) {
   );
 
   return { rows, totals };
+}
+
+// Designation-wise PENDING and DISPOSED case-count summary. Groups every
+// record (across ALL establishments) by the raw "Designation" column read
+// from inside the Excel file.
+export function computeDesignationSummary(scan) {
+  return tallyBy(scan, "designation", (estab, rec) => rec.designation || "(unknown)");
+}
+
+// ESTA-wise PENDING and DISPOSED case-count summary. Groups every record
+// by its ESTA (establishment code resolved from the SOURCE FILE NAME via
+// resolveEstab: RAN/KUT/SUB/APP, else PBR — see establishmentResolver.js),
+// NOT by the raw "Designation" column.
+export function computeEstablishmentSummary(scan) {
+  return tallyBy(scan, "designation", (estab) => estab || "PBR");
 }
