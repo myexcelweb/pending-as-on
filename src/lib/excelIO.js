@@ -343,7 +343,7 @@ export async function buildDeletedCombinedWorkbook(deletedPending, deletedDispos
 // so the DUPLICATE workbook is a self-contained audit trail: for every
 // duplicate CNR you can see every copy, which file each one came from, and
 // which single copy was kept.
-export async function buildDuplicatesCombinedWorkbook(duplicatePendingReport, duplicateDisposedReport, courtType, estab) {
+export async function buildDuplicatesCombinedWorkbook(duplicatePendingReport, duplicateDisposedReport, courtType, estab, crossCategoryReport = []) {
   const wb = newWorkbook();
   // "Status" is now split into two separate columns — "Keep" and
   // "Removed/Deleted" — so each row shows a mark in exactly ONE of the two
@@ -409,6 +409,48 @@ export async function buildDuplicatesCombinedWorkbook(duplicatePendingReport, du
       row++;
     }
     autoFitColumns(sheet, disposedHeaders);
+  }
+
+  // Third sheet: cases whose CNR appeared in BOTH the establishment's
+  // PENDING and DISPOSED lists. Rule applied: keep the PENDING copy, drop
+  // the DISPOSED copy. "Category" shows which original list each row came
+  // from, since a pending-shaped row and a disposed-shaped row don't share
+  // all the same columns (Next Date/Purpose vs Date of Decision/Nature of
+  // Disposal), so both sets of columns are included and whichever doesn't
+  // apply to a given row is left blank.
+  if (crossCategoryReport.length > 0) {
+    const crossHeaders = ["Sr. No.", "Keep", "Removed/Deleted", "Category", "Source File", "Case No.", "CNR",
+      "Petitioner Name VS Respondent Name", "Advocate", "Date of Registration", "Next Date", "Purpose",
+      "Date of Decision", "Nature of Disposal", "Act Section", "Nature", "Designation"];
+    const sheet = wb.addWorksheet("PENDING_DISPOSED_DUPLICATE");
+    sheet.getCell(1, 1).value = `PORBANDAR_${courtType}_COURT_${estab}_PENDING_DISPOSED_DUPLICATE (same CNR in both PENDING and DISPOSED — PENDING kept)`;
+    sheet.mergeCells(1, 1, 1, crossHeaders.length);
+    writeHeaderStyle(sheet, crossHeaders);
+    let row = 3, sr = 1;
+    for (const rec of crossCategoryReport) {
+      const r = sheet.getRow(row);
+      const isKept = rec.dedupeStatus === "KEPT";
+      r.getCell(1).value = sr++;
+      r.getCell(2).value = isKept ? "KEEP" : "";
+      r.getCell(3).value = isKept ? "" : "DELETED";
+      r.getCell(4).value = rec.category;
+      r.getCell(5).value = rec.sourceFileName;
+      r.getCell(6).value = rec.caseNo;
+      r.getCell(7).value = rec.cnr;
+      r.getCell(8).value = rec.petitionerVsRespondent;
+      r.getCell(9).value = rec.advocate;
+      r.getCell(10).value = rec.dateOfRegistration ? formatDate(rec.dateOfRegistration) : "";
+      r.getCell(11).value = rec.nextDate ? formatDate(rec.nextDate) : "";
+      r.getCell(12).value = rec.purpose ?? "";
+      r.getCell(13).value = rec.dateOfDecision ? formatDate(rec.dateOfDecision) : "";
+      r.getCell(14).value = rec.natureOfDisposal ?? "";
+      r.getCell(15).value = rec.actSection;
+      r.getCell(16).value = rec.nature;
+      r.getCell(17).value = rec.designation;
+      if (!isKept) fillLightGreen(r, crossHeaders.length);
+      row++;
+    }
+    autoFitColumns(sheet, crossHeaders);
   }
 
   if (wb.worksheets.length === 0) return null;
