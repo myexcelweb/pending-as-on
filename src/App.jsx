@@ -29,6 +29,7 @@ function download(blob, fileName) {
 }
 
 export default function App() {
+  const [mainTab, setMainTab] = useState("setup");
   const [files, setFiles] = useState([]);
   const [dateIso, setDateIso] = useState(todayIso());
   const [running, setRunning] = useState(false);
@@ -54,6 +55,7 @@ export default function App() {
     try {
       const outcome = await runPipeline(files, targetDate, log);
       setResult(outcome);
+      setMainTab("dashboard");
     } catch (ex) {
       console.error(ex);
       setError(ex.message || String(ex));
@@ -106,155 +108,189 @@ export default function App() {
 
   return (
     <div className="grain-bg min-h-screen">
-      {/* Hero */}
-      <header className="relative overflow-hidden border-b border-ink-700">
-        <div className="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-16 sm:py-20 md:flex-row md:items-center">
-          <div className="hidden shrink-0 select-none font-mono text-[11px] text-brass-dim md:block docket-strip">
-            EST. APP · SUB · RAN · KUT · PBR
-          </div>
+      {/* Compact header */}
+      <header className="border-b border-ink-700 bg-ink-900">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-5 py-4">
           <div>
-            <p className="font-mono text-xs uppercase tracking-[0.35em] text-brass">
-              Docket · Case Report Generator
+            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-brass">
+              Docket
             </p>
-            <h1 className="mt-4 font-display text-4xl leading-tight text-parchment sm:text-5xl">
-              Turn scattered case registers into a{" "}
-              <span className="italic text-brass">closed docket</span>.
+            <h1 className="font-display text-xl text-parchment sm:text-2xl">
+              Case Report Generator
             </h1>
-            <p className="mt-5 max-w-xl font-body text-[15px] leading-relaxed text-parchment-dim">
-              Upload every PENDING and DISPOSED register — QUERY_BUILDER format,
-              DASHBOARD format, or a mix of both — pick a date, and Docket
-              auto-detects each file's proforma from its columns, removes repeated
-              Case No. / Cases entries within the same source file, and hands back
-              two separate proforma-wise ZIPs: QUERY_BUILDER (full monthwise /
-              position-as-on-date pipeline) and DASHBOARD (cleaned, deduplicated
-              registers). Everything runs in this browser tab; no file ever leaves
-              your machine.
-            </p>
           </div>
+          <p className="hidden max-w-xs text-right font-mono text-[11px] leading-snug text-parchment-dim sm:block">
+            Upload registers · pick a date · download ZIPs.
+            <br />
+            Everything stays in your browser.
+          </p>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-6 py-12">
-        <section aria-labelledby="upload-heading" className="space-y-4">
-          <div className="flex items-baseline justify-between">
-            <h2 id="upload-heading" className="font-display text-xl text-parchment">
-              1. Case registers
-            </h2>
-            <span className="font-mono text-xs text-parchment-dim">
-              {files.length} file{files.length === 1 ? "" : "s"} loaded
-            </span>
-          </div>
-          <UploadZone files={files} onFilesChange={setFiles} />
-        </section>
-
-        <section aria-labelledby="date-heading" className="mt-10 space-y-4">
-          <h2 id="date-heading" className="font-display text-xl text-parchment">
-            2. Position as on date
-          </h2>
-          <p className="max-w-xl font-body text-sm text-parchment-dim">
-            Records registered after this date are set aside as DELETE; disposed cases
-            decided after it are MOVEd back into pending.
-          </p>
-          <input
-            type="date"
-            value={dateIso}
-            onChange={(e) => setDateIso(e.target.value)}
-            className="rounded-sm border border-ink-600 bg-ink-900 px-4 py-2.5 font-mono text-sm text-parchment focus:border-brass"
-          />
-        </section>
-
-        <section className="mt-10">
+      <main className="mx-auto max-w-5xl px-5 py-8">
+        {/* Tabs */}
+        <div className="mb-8 flex gap-1 rounded-lg border border-ink-700 bg-ink-900 p-1">
           <button
             type="button"
-            onClick={handleRun}
-            disabled={files.length === 0 || running}
-            className="w-full rounded-sm bg-emerald px-6 py-3.5 font-display text-lg tracking-wide text-parchment transition hover:bg-emerald-bright disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
+            onClick={() => setMainTab("setup")}
+            className={`flex-1 rounded-md px-4 py-2.5 font-mono text-sm font-medium transition ${
+              mainTab === "setup"
+                ? "bg-brass text-ink-950 shadow-sm"
+                : "text-parchment-dim hover:bg-ink-800 hover:text-parchment"
+            }`}
           >
-            {running ? "Processing register…" : "Generate reports"}
+            Setup
           </button>
-          {error && (
-            <p className="mt-3 font-mono text-sm text-rust">
-              Something went wrong: {error}
-            </p>
-          )}
-        </section>
+          <button
+            type="button"
+            onClick={() => result && setMainTab("dashboard")}
+            disabled={!result}
+            title={result ? undefined : "Generate a report first"}
+            className={`flex-1 rounded-md px-4 py-2.5 font-mono text-sm font-medium transition ${
+              mainTab === "dashboard"
+                ? "bg-brass text-ink-950 shadow-sm"
+                : result
+                  ? "text-parchment-dim hover:bg-ink-800 hover:text-parchment"
+                  : "cursor-not-allowed text-parchment-dim/40"
+            }`}
+          >
+            Dashboard
+          </button>
+        </div>
 
-        {logLines.length > 0 && (
-          <section className="mt-8">
-            <LogConsole lines={logLines} />
-          </section>
-        )}
+        {mainTab === "setup" && (
+          <div className="space-y-8">
+            {/* Upload */}
+            <section className="rounded-lg border border-ink-700 bg-ink-900 p-5">
+              <div className="mb-4 flex items-baseline justify-between">
+                <h2 className="font-display text-lg text-parchment">
+                  Case registers
+                </h2>
+                <span className="font-mono text-xs text-parchment-dim">
+                  {files.length} file{files.length === 1 ? "" : "s"}
+                </span>
+              </div>
+              <UploadZone files={files} onFilesChange={setFiles} />
+            </section>
 
-        {result && (
-          <section className="mt-8">
-            <ResultsPanel
-              scan={result.scan}
-              queryBuilderFiles={result.queryBuilderFiles}
-              dashboardFiles={result.dashboardFiles}
-              consolidatedFiles={result.consolidatedFiles}
-              consolidatedStats={result.consolidatedStats}
-              onDownloadQueryBuilderZip={handleDownloadQueryBuilderZip}
-              onDownloadDashboardZip={handleDownloadDashboardZip}
-              onDownloadConsolidatedZip={handleDownloadConsolidatedZip}
-              onDownloadAllData={handleDownloadAllData}
-              qbZipBusy={qbZipBusy}
-              dbZipBusy={dbZipBusy}
-              csZipBusy={csZipBusy}
-            />
-          </section>
-        )}
+            {/* Date + Run */}
+            <section className="rounded-lg border border-ink-700 bg-ink-900 p-5">
+              <h2 className="mb-1 font-display text-lg text-parchment">
+                Position as on date
+              </h2>
+              <p className="mb-4 font-mono text-xs text-parchment-dim">
+                Cases registered after this date → DELETE. Disposed after this date → MOVE back to pending.
+              </p>
+              <div className="flex flex-wrap items-end gap-4">
+                <input
+                  type="date"
+                  value={dateIso}
+                  onChange={(e) => setDateIso(e.target.value)}
+                  className="rounded-md border border-ink-600 bg-ink-950 px-3 py-2.5 font-mono text-sm text-parchment focus:border-brass"
+                />
+                <button
+                  type="button"
+                  onClick={handleRun}
+                  disabled={files.length === 0 || running}
+                  className="rounded-md bg-emerald px-6 py-2.5 font-mono text-sm font-medium text-white transition hover:bg-emerald-bright disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {running ? "Processing…" : "Generate reports"}
+                </button>
+              </div>
+              {error && (
+                <p className="mt-3 font-mono text-sm text-rust">
+                  Error: {error}
+                </p>
+              )}
+              {result && (
+                <p className="mt-3 font-mono text-sm text-emerald">
+                  Done — open the Dashboard tab.
+                </p>
+              )}
+            </section>
 
-        <section className="mt-16 border-t border-ink-700 pt-8">
-          <h2 className="font-display text-lg text-parchment">Column formats expected</h2>
-          <div className="mt-4 grid gap-6 sm:grid-cols-2">
-            <div className="rounded-sm border border-ink-700 p-4">
-              <p className="font-mono text-xs uppercase tracking-widest text-brass">QUERY_BUILDER · Pending</p>
-              <p className="mt-2 font-mono text-[12.5px] leading-relaxed text-parchment-dim">
-                Sr. No. · Case No. · CNR · Petitioner Name VS Respondent Name · Advocate ·
-                Date of Registration · Next Date · Purpose · Act Section · Nature · Designation
+            {logLines.length > 0 && (
+              <section>
+                <LogConsole lines={logLines} />
+              </section>
+            )}
+
+            {/* Compact format guide */}
+            <section className="rounded-lg border border-ink-700 bg-ink-900/60 p-5">
+              <h2 className="mb-3 font-display text-base text-parchment">
+                Expected columns
+              </h2>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-md border border-ink-700 bg-ink-950/50 p-3">
+                  <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-brass">
+                    QUERY_BUILDER · Pending
+                  </p>
+                  <p className="font-mono text-[11px] leading-relaxed text-parchment-dim">
+                    Sr. No. · Case No. · CNR · Party · Advocate · Reg. Date · Next Date · Purpose · Act · Nature · Designation
+                  </p>
+                </div>
+                <div className="rounded-md border border-ink-700 bg-ink-950/50 p-3">
+                  <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-brass">
+                    QUERY_BUILDER · Disposed
+                  </p>
+                  <p className="font-mono text-[11px] leading-relaxed text-parchment-dim">
+                    Sr. No. · Case No. · CNR · Party · Advocate · Reg. Date · Decision Date · Disposal Nature · Act · Nature · Designation
+                  </p>
+                </div>
+                <div className="rounded-md border border-ink-700 bg-ink-950/50 p-3">
+                  <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-emerald">
+                    DASHBOARD · Pending
+                  </p>
+                  <p className="font-mono text-[11px] leading-relaxed text-parchment-dim">
+                    Sr. No. · Cases · Party · Reg. Date · Age · Ready/Unready · Next Date · Purpose · Stage · Dormant · Nature · Delay
+                  </p>
+                </div>
+                <div className="rounded-md border border-ink-700 bg-ink-950/50 p-3">
+                  <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-emerald">
+                    DASHBOARD · Disposed
+                  </p>
+                  <p className="font-mono text-[11px] leading-relaxed text-parchment-dim">
+                    Sr. No. · Cases · Party · Reg. Date · Decision Date · Contested · Disposal Nature · Nature
+                  </p>
+                </div>
+              </div>
+              <p className="mt-3 font-mono text-[11px] text-parchment-dim">
+                Format and type are detected from headers. Establishment from file name (APP / SUB / RAN / KUT → else PBR). Duplicate Case No. within a file is dropped.
               </p>
-            </div>
-            <div className="rounded-sm border border-ink-700 p-4">
-              <p className="font-mono text-xs uppercase tracking-widest text-brass">QUERY_BUILDER · Disposed</p>
-              <p className="mt-2 font-mono text-[12.5px] leading-relaxed text-parchment-dim">
-                Sr. No. · Case No. · CNR · Petitioner Name VS Respondent Name · Advocate ·
-                Date of Registration · Date of Decision · Nature of Disposal · Act Section ·
-                Nature · Designation
-              </p>
-            </div>
-            <div className="rounded-sm border border-ink-700 p-4">
-              <p className="font-mono text-xs uppercase tracking-widest text-emerald-bright">DASHBOARD · Pending</p>
-              <p className="mt-2 font-mono text-[12.5px] leading-relaxed text-parchment-dim">
-                Sr. No. · Cases · Party Name · Date of Registration · Age ·
-                Ready / Unready / Stayed · Next Date · Next Purpose · On same Stage since ·
-                DORMANT CASE/SINE Die CASE · Nature · Delay Reason
-              </p>
-            </div>
-            <div className="rounded-sm border border-ink-700 p-4">
-              <p className="font-mono text-xs uppercase tracking-widest text-emerald-bright">DASHBOARD · Disposed</p>
-              <p className="mt-2 font-mono text-[12.5px] leading-relaxed text-parchment-dim">
-                Sr. No. · Cases · Party Name · Registration date · Date of Decision ·
-                Contested/Uncontested · Disposal Nature · Nature
-              </p>
-            </div>
+            </section>
           </div>
-          <p className="mt-4 font-mono text-xs text-parchment-dim">
-            Proforma (QUERY_BUILDER vs DASHBOARD) and type (Pending vs Disposed) are both
-            detected from these column headers, not the file name — you can upload a mix
-            of both formats in one go. Establishment is read from the start of the file
-            name (APP / SUB / RAN / KUT), otherwise PBR. A repeated Case No. / Cases value
-            within the same uploaded file is dropped, keeping the first entry.
-          </p>
-        </section>
+        )}
+
+        {mainTab === "dashboard" && (
+          <section>
+            {result ? (
+              <ResultsPanel
+                scan={result.scan}
+                queryBuilderFiles={result.queryBuilderFiles}
+                dashboardFiles={result.dashboardFiles}
+                consolidatedFiles={result.consolidatedFiles}
+                consolidatedStats={result.consolidatedStats}
+                onDownloadQueryBuilderZip={handleDownloadQueryBuilderZip}
+                onDownloadDashboardZip={handleDownloadDashboardZip}
+                onDownloadConsolidatedZip={handleDownloadConsolidatedZip}
+                onDownloadAllData={handleDownloadAllData}
+                qbZipBusy={qbZipBusy}
+                dbZipBusy={dbZipBusy}
+                csZipBusy={csZipBusy}
+              />
+            ) : (
+              <p className="rounded-lg border border-ink-700 bg-ink-900 p-6 font-mono text-sm text-parchment-dim">
+                No report yet. Go to Setup and generate one first.
+              </p>
+            )}
+          </section>
+        )}
       </main>
 
-      <footer className="border-t border-ink-700 px-6 py-8 text-center font-mono text-xs text-parchment-dim">
-        <p>
-          Docket runs entirely client-side — uploaded registers are processed in memory and
-          never transmitted anywhere.
-        </p>
-        <p className="mt-2 whitespace-nowrap text-parchment-dim">
-          Designed &amp; Developed by Parimal Hodar &nbsp;|&nbsp; Email Address: parimalhodar.dev@gmail.com
+      <footer className="border-t border-ink-700 px-5 py-6 text-center font-mono text-[11px] text-parchment-dim">
+        <p>Runs fully in your browser — files never leave your machine.</p>
+        <p className="mt-1">
+          Designed &amp; Developed by Parimal Hodar · parimalhodar.dev@gmail.com
         </p>
       </footer>
     </div>

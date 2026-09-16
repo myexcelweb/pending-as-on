@@ -7,7 +7,9 @@ export default function UploadZone({ files, onFilesChange }) {
 
   const addFiles = useCallback(
     (fileList) => {
-      const incoming = Array.from(fileList).filter((f) => f.name.toLowerCase().endsWith(".xlsx"));
+      const incoming = Array.from(fileList).filter((f) =>
+        f.name.toLowerCase().endsWith(".xlsx")
+      );
       if (incoming.length === 0) return;
       const byName = new Map(files.map((f) => [f.name, f]));
       for (const f of incoming) byName.set(f.name, f);
@@ -39,8 +41,12 @@ export default function UploadZone({ files, onFilesChange }) {
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
         }}
-        className={`cursor-pointer rounded-sm border-2 border-dashed px-6 py-10 text-center transition-colors
-          ${dragOver ? "border-brass bg-ink-800/60" : "border-ink-600 bg-ink-900/40 hover:border-brass-dim"}`}
+        className={`cursor-pointer rounded-lg border-2 border-dashed px-5 py-8 text-center transition-colors
+          ${
+            dragOver
+              ? "border-brass bg-ink-800/50"
+              : "border-ink-600 bg-ink-950/30 hover:border-brass-dim"
+          }`}
       >
         <input
           ref={inputRef}
@@ -50,20 +56,23 @@ export default function UploadZone({ files, onFilesChange }) {
           className="hidden"
           onChange={(e) => addFiles(e.target.files)}
         />
-        <p className="font-display text-lg text-parchment">
-          Drop the case register files here
+        <p className="font-display text-base text-parchment">
+          Drop .xlsx files here, or click to browse
         </p>
-        <p className="mt-1 font-mono text-xs text-parchment-dim">
-          .xlsx only · APP / SUB / RAN / KUT / PBR — auto-detected from file name
+        <p className="mt-1 font-mono text-[11px] text-parchment-dim">
+          APP / SUB / RAN / KUT / PBR detected from file name
         </p>
       </div>
 
       {files.length > 0 && (
-        <ul className="mt-4 divide-y divide-ink-700 rounded-sm border border-ink-700 bg-ink-900/40">
+        <ul className="mt-3 divide-y divide-ink-700 rounded-lg border border-ink-700 bg-ink-950/30">
           {files.map((f) => (
-            <li key={f.name} className="flex items-center justify-between gap-3 px-4 py-2.5 font-mono text-sm">
-              <span className="truncate text-parchment">{f.name}</span>
-              <span className="shrink-0 rounded-sm border border-brass-dim/60 px-2 py-0.5 text-[11px] tracking-wide text-brass">
+            <li
+              key={f.name}
+              className="flex items-center justify-between gap-3 px-3 py-2 font-mono text-sm"
+            >
+              <span className="min-w-0 truncate text-parchment">{f.name}</span>
+              <span className="shrink-0 rounded border border-brass-dim/50 px-1.5 py-0.5 text-[10px] text-brass">
                 {resolveEstab(f.name)}
               </span>
               <button
@@ -73,9 +82,9 @@ export default function UploadZone({ files, onFilesChange }) {
                   removeFile(f.name);
                 }}
                 aria-label={`Remove ${f.name}`}
-                className="shrink-0 text-parchment-dim hover:text-rust"
+                className="shrink-0 rounded px-1.5 py-0.5 text-parchment-dim hover:bg-ink-800 hover:text-rust"
               >
-                ✕
+                Remove
               </button>
             </li>
           ))}

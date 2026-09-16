@@ -9,6 +9,7 @@ import { dedupeByCaseNo, dedupeCrossCategory } from "./deduplicator.js";
 import { loadPending, loadDisposed, loadWorkbookFromFile, buildDuplicatesCombinedWorkbook } from "./excelIO.js";
 import { detectProforma } from "./proformaResolver.js";
 import { readDashboardSheet, dedupeDashboardRows, buildDashboardWorkbook } from "./dashboardIO.js";
+import { classifySide } from "./side.js";
 
 // files: array of File objects (from an <input type=file multiple> or drop)
 // log: optional callback(message) for progress output
@@ -225,4 +226,74 @@ async function deduplicateEstablishmentWise(pendingByEstab, disposedByEstab, log
   }
 
   return duplicateFiles;
+}
+
+// Designation-wise PENDING and DISPOSED case-count summary, for the
+// dashboard. Groups every PENDING/DISPOSED record (across ALL
+// establishments) by its `designation`, and within each designation
+// splits counts into Civil / Criminal using side.js's classifySide(),
+// which reads the case-type prefix off the front of `caseNo`
+// (e.g. "CC/408/2025" -> "CC" -> CRIMINAL).
+//
+// Note: "*Total" is the total record count for that designation,
+// regardless of classification — it can be greater than Civil + Criminal
+// if some case-type prefixes aren't in side.js's known lists (those show
+// up as UNKNOWN and aren't counted in either the Civil or Criminal
+// column, but are still counted in the total).
+export function computeDesignationSummary(scan) {
+  const byDesignation = new Map();
+
+  const ensure = (designation) => {
+    if (!byDesignation.has(designation)) {
+      byDesignation.set(designation, {
+        designation,
+        pendingCivil: 0,
+        pendingCriminal: 0,
+        pendingTotal: 0,
+        disposeCivil: 0,
+        disposeCriminal: 0,
+        disposeTotal: 0,
+      });
+    }
+    return byDesignation.get(designation);
+  };
+
+  for (const estab of Object.keys(scan.pendingByEstab)) {
+    for (const rec of scan.pendingByEstab[estab]) {
+      const row = ensure(rec.designation || "(unknown)");
+      row.pendingTotal += 1;
+      const side = classifySide(rec.caseNo);
+      if (side === "CIVIL") row.pendingCivil += 1;
+      else if (side === "CRIMINAL") row.pendingCriminal += 1;
+    }
+  }
+
+  for (const estab of Object.keys(scan.disposedByEstab)) {
+    for (const rec of scan.disposedByEstab[estab]) {
+      const row = ensure(rec.designation || "(unknown)");
+      row.disposeTotal += 1;
+      const side = classifySide(rec.caseNo);
+      if (side === "CIVIL") row.disposeCivil += 1;
+      else if (side === "CRIMINAL") row.disposeCriminal += 1;
+    }
+  }
+
+  const rows = Array.from(byDesignation.values()).sort((a, b) =>
+    a.designation.localeCompare(b.designation)
+  );
+
+  const totals = rows.reduce(
+    (acc, r) => {
+      acc.pendingCivil += r.pendingCivil;
+      acc.pendingCriminal += r.pendingCriminal;
+      acc.pendingTotal += r.pendingTotal;
+      acc.disposeCivil += r.disposeCivil;
+      acc.disposeCriminal += r.disposeCriminal;
+      acc.disposeTotal += r.disposeTotal;
+      return acc;
+    },
+    { pendingCivil: 0, pendingCriminal: 0, pendingTotal: 0, disposeCivil: 0, disposeCriminal: 0, disposeTotal: 0 }
+  );
+
+  return { rows, totals };
 }
