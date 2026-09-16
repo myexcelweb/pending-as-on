@@ -174,33 +174,33 @@ async function deduplicateEstablishmentWise(pendingByEstab, disposedByEstab, log
   );
 
   for (const estab of allEstabs) {
-    let pendingDupes = [];
+    let pendingReport = [];
     if (pendingByEstab[estab]) {
-      const { result, duplicates } = dedupeByCaseNo(pendingByEstab[estab]);
+      const { result, duplicates, report } = dedupeByCaseNo(pendingByEstab[estab]);
       pendingByEstab[estab] = result;
-      pendingDupes = duplicates;
+      pendingReport = report;
       if (duplicates.length > 0) {
-        log(`[DEDUPE]   PENDING  ESTAB=${estab}: removed ${duplicates.length} duplicate Case No. entr${duplicates.length === 1 ? "y" : "ies"}.`);
+        log(`[DEDUPE]   PENDING  ESTAB=${estab}: removed ${duplicates.length} duplicate CNR entr${duplicates.length === 1 ? "y" : "ies"} (kept + removed both logged in DUPLICATE file).`);
       }
     }
 
-    let disposedDupes = [];
+    let disposedReport = [];
     if (disposedByEstab[estab]) {
-      const { result, duplicates } = dedupeByCaseNo(disposedByEstab[estab]);
+      const { result, duplicates, report } = dedupeByCaseNo(disposedByEstab[estab]);
       disposedByEstab[estab] = result;
-      disposedDupes = duplicates;
+      disposedReport = report;
       if (duplicates.length > 0) {
-        log(`[DEDUPE]   DISPOSED ESTAB=${estab}: removed ${duplicates.length} duplicate Case No. entr${duplicates.length === 1 ? "y" : "ies"}.`);
+        log(`[DEDUPE]   DISPOSED ESTAB=${estab}: removed ${duplicates.length} duplicate CNR entr${duplicates.length === 1 ? "y" : "ies"} (kept + removed both logged in DUPLICATE file).`);
       }
     }
 
-    if (pendingDupes.length > 0 || disposedDupes.length > 0) {
+    if (pendingReport.length > 0 || disposedReport.length > 0) {
       const courtType = getCourtType(estab);
       const dupFileName = `${estab}_DUPLICATE.xlsx`;
-      const buffer = await buildDuplicatesCombinedWorkbook(pendingDupes, disposedDupes, courtType, estab);
+      const buffer = await buildDuplicatesCombinedWorkbook(pendingReport, disposedReport, courtType, estab);
       if (buffer) {
         duplicateFiles.push({ path: `OUTPUT/DUPLICATE/${dupFileName}`, buffer });
-        log(`[DEDUPE]   ESTAB=${estab}: duplicates saved -> OUTPUT/DUPLICATE/${dupFileName}`);
+        log(`[DEDUPE]   ESTAB=${estab}: KEPT + REMOVED entries saved -> OUTPUT/DUPLICATE/${dupFileName}`);
       }
     }
   }
