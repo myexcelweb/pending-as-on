@@ -58,3 +58,44 @@ export function dedupeByCaseNo(records) {
 
   return { result, duplicates, report };
 }
+
+// Cross-category dedupe, run AFTER dedupeByCaseNo has already deduped
+// PENDING and DISPOSED separately (so each list has at most one row per
+// CNR at this point).
+//
+// Rule: if the same CNR shows up in BOTH the establishment's PENDING list
+// AND its DISPOSED list, the case is treated as still pending — the
+// DISPOSED copy is dropped and only the PENDING copy is kept.
+//
+// Returns:
+//   disposedResult - the disposed list with any cross-duplicate CNRs removed
+//   crossReport     - for every CNR that was duplicated across categories,
+//                      BOTH the kept PENDING row and the removed DISPOSED
+//                      row, each tagged with:
+//                        dedupeStatus: "KEPT" | "REMOVED"
+//                        category: "PENDING" | "DISPOSED"
+export function dedupeCrossCategory(pendingRecords, disposedRecords) {
+  const pendingByCnr = new Map();
+  for (const r of pendingRecords) {
+    const key = (r.cnr ?? "").trim().toUpperCase();
+    if (key !== "" && !pendingByCnr.has(key)) pendingByCnr.set(key, r);
+  }
+
+  const disposedResult = [];
+  const crossReport = [];
+
+  for (const r of disposedRecords) {
+    const key = (r.cnr ?? "").trim().toUpperCase();
+    const pendingMatch = key !== "" ? pendingByCnr.get(key) : undefined;
+
+    if (pendingMatch) {
+      crossReport.push({ ...pendingMatch, dedupeStatus: "KEPT", category: "PENDING" });
+      crossReport.push({ ...r, dedupeStatus: "REMOVED", category: "DISPOSED" });
+      // dropped from disposedResult — the pending copy is the one kept
+    } else {
+      disposedResult.push(r);
+    }
+  }
+
+  return { disposedResult, crossReport };
+}
