@@ -147,7 +147,7 @@ function DesignationSummaryTable({ rows, totals, mode }) {
       <table className="w-full min-w-[420px] text-left font-mono text-sm">
         <thead>
           <tr className="border-b border-ink-700 bg-ink-800/50 text-[10px] uppercase tracking-wider text-parchment-dim">
-            <th className="px-3 py-2.5 font-medium">Designation</th>
+            <th className="px-3 py-2.5 font-medium">Designation (ESTA)</th>
             <th className="px-3 py-2.5 text-right font-medium">{civilLabel}</th>
             <th className="px-3 py-2.5 text-right font-medium">{criminalLabel}</th>
             <th className="px-3 py-2.5 text-right font-medium">{totalLabel}</th>
@@ -212,7 +212,7 @@ export default function ResultsPanel({
     { key: "query_builder", label: "QUERY_BUILDER", visible: fileStats.rows.length > 0 },
     { key: "dashboard_files", label: "DASHBOARD", visible: dashboardStats.rows.length > 0 },
     { key: "consolidated", label: "CONSOLIDATED", visible: consolidatedFiles.length > 0 },
-    { key: "designation", label: "Designation", visible: designationSummary.rows.length > 0 },
+    { key: "designation", label: "Designation (ESTA)", visible: designationSummary.rows.length > 0 },
     { key: "court_wise", label: "Court-wise", visible: estabs.length > 0 },
   ].filter((t) => t.visible);
 
@@ -383,7 +383,7 @@ function ResultsPanelBody({
         <div className="space-y-5">
           <div className="space-y-2">
             <h4 className="font-mono text-xs uppercase tracking-wider text-parchment-dim">
-              Pending by designation
+              Pending by designation (ESTA)
             </h4>
             <DesignationSummaryTable
               rows={designationSummary.rows}
@@ -393,7 +393,7 @@ function ResultsPanelBody({
           </div>
           <div className="space-y-2">
             <h4 className="font-mono text-xs uppercase tracking-wider text-parchment-dim">
-              Disposed by designation
+              Disposed by designation (ESTA)
             </h4>
             <DesignationSummaryTable
               rows={designationSummary.rows}
