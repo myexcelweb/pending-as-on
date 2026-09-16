@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { getCourtType } from "../lib/establishmentResolver.js";
-import { computeFileStats, computeDashboardStats, computeDesignationSummary } from "../lib/inputScanner.js";
+import { computeFileStats, computeDashboardStats, computeDesignationSummary, computeEstablishmentSummary } from "../lib/inputScanner.js";
 
 /** Always show a number (including 0). Never show dash/cross for zero. */
 function num(v) {
@@ -132,7 +132,7 @@ function DashboardStatsTable({ rows, totals }) {
   );
 }
 
-function DesignationSummaryTable({ rows, totals, mode }) {
+function DesignationSummaryTable({ rows, totals, mode, keyLabel = "Designation" }) {
   if (!rows || rows.length === 0) return null;
 
   const civilKey = mode === "pending" ? "pendingCivil" : "disposeCivil";
@@ -147,7 +147,7 @@ function DesignationSummaryTable({ rows, totals, mode }) {
       <table className="w-full min-w-[420px] text-left font-mono text-sm">
         <thead>
           <tr className="border-b border-ink-700 bg-ink-800/50 text-[10px] uppercase tracking-wider text-parchment-dim">
-            <th className="px-3 py-2.5 font-medium">Designation (ESTA)</th>
+            <th className="px-3 py-2.5 font-medium">{keyLabel}</th>
             <th className="px-3 py-2.5 text-right font-medium">{civilLabel}</th>
             <th className="px-3 py-2.5 text-right font-medium">{criminalLabel}</th>
             <th className="px-3 py-2.5 text-right font-medium">{totalLabel}</th>
@@ -200,6 +200,7 @@ export default function ResultsPanel({
   const fileStats = computeFileStats(scan);
   const dashboardStats = computeDashboardStats(scan);
   const designationSummary = computeDesignationSummary(scan);
+  const establishmentSummary = computeEstablishmentSummary(scan);
   const totalOutputFiles =
     (queryBuilderFiles?.length ?? 0) +
     (dashboardFiles?.length ?? 0) +
@@ -212,7 +213,7 @@ export default function ResultsPanel({
     { key: "query_builder", label: "QUERY_BUILDER", visible: fileStats.rows.length > 0 },
     { key: "dashboard_files", label: "DASHBOARD", visible: dashboardStats.rows.length > 0 },
     { key: "consolidated", label: "CONSOLIDATED", visible: consolidatedFiles.length > 0 },
-    { key: "designation", label: "Designation (ESTA)", visible: designationSummary.rows.length > 0 },
+    { key: "designation", label: "Designation", visible: designationSummary.rows.length > 0 || establishmentSummary.rows.length > 0 },
     { key: "court_wise", label: "Court-wise", visible: estabs.length > 0 },
   ].filter((t) => t.visible);
 
@@ -379,27 +380,56 @@ function ResultsPanelBody({
       )}
 
       {/* Designation */}
-      {currentTab === "designation" && designationSummary.rows.length > 0 && (
-        <div className="space-y-5">
-          <div className="space-y-2">
-            <h4 className="font-mono text-xs uppercase tracking-wider text-parchment-dim">
-              Pending by designation (ESTA)
-            </h4>
-            <DesignationSummaryTable
-              rows={designationSummary.rows}
-              totals={designationSummary.totals}
-              mode="pending"
-            />
+      {currentTab === "designation" && (designationSummary.rows.length > 0 || establishmentSummary.rows.length > 0) && (
+        <div className="space-y-8">
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <h4 className="font-mono text-xs uppercase tracking-wider text-parchment-dim">
+                Pending by designation
+              </h4>
+              <DesignationSummaryTable
+                rows={designationSummary.rows}
+                totals={designationSummary.totals}
+                mode="pending"
+                keyLabel="Designation"
+              />
+            </div>
+            <div className="space-y-2">
+              <h4 className="font-mono text-xs uppercase tracking-wider text-parchment-dim">
+                Disposed by designation
+              </h4>
+              <DesignationSummaryTable
+                rows={designationSummary.rows}
+                totals={designationSummary.totals}
+                mode="dispose"
+                keyLabel="Designation"
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <h4 className="font-mono text-xs uppercase tracking-wider text-parchment-dim">
-              Disposed by designation (ESTA)
-            </h4>
-            <DesignationSummaryTable
-              rows={designationSummary.rows}
-              totals={designationSummary.totals}
-              mode="dispose"
-            />
+
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <h4 className="font-mono text-xs uppercase tracking-wider text-parchment-dim">
+                Pending by ESTA (establishment)
+              </h4>
+              <DesignationSummaryTable
+                rows={establishmentSummary.rows}
+                totals={establishmentSummary.totals}
+                mode="pending"
+                keyLabel="ESTA"
+              />
+            </div>
+            <div className="space-y-2">
+              <h4 className="font-mono text-xs uppercase tracking-wider text-parchment-dim">
+                Disposed by ESTA (establishment)
+              </h4>
+              <DesignationSummaryTable
+                rows={establishmentSummary.rows}
+                totals={establishmentSummary.totals}
+                mode="dispose"
+                keyLabel="ESTA"
+              />
+            </div>
           </div>
         </div>
       )}
